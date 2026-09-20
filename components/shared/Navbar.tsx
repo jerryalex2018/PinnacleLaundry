@@ -1,130 +1,195 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Menu, X } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
+import { LayoutDashboard, Menu, X } from "lucide-react";
 
 export default function Navbar() {
-  const [isOpen, setIsOpen] = useState(false);
   const pathname = usePathname();
+  const supabase = createClient();
 
-  const navLinks = [
-    { name: "Services", href: "/services" },
-    { name: "How It Works", href: "/how-it-works" },
-    { name: "Pricing", href: "/pricing" },
-    { name: "Track Order", href: "/track-order" },
-  ];
+  const [user, setUser] = useState<any>(null);
+  const [role, setRole] = useState<string>("customer");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  const isActive = (href: string) => pathname === href;
+  useEffect(() => {
+    async function checkAuth() {
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (session?.user) {
+        setUser(session.user);
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("role")
+          .eq("id", session.user.id)
+          .maybeSingle();
+        if (profile?.role) setRole(profile.role);
+      } else {
+        setUser(null);
+      }
+    }
+
+    checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange(
+      (_event, session) => {
+        if (session?.user) {
+          setUser(session.user);
+          checkAuth();
+        } else {
+          setUser(null);
+          setRole("customer");
+        }
+      },
+    );
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
+  }, [supabase]);
+
+  const dashboardHref =
+    role === "admin" || role === "staff" ? "/admin" : "/dashboard";
 
   return (
-    <header className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-100">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 sm:h-20 flex items-center justify-between">
+    <header className="sticky top-0 z-40 bg-white/90 backdrop-blur-md border-b border-slate-100">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-16 flex items-center justify-between">
         {/* Brand Logo */}
         <Link href="/" className="flex items-center gap-2.5">
-          <div className="w-8 h-8 rounded-full bg-[#0088cc] text-white flex items-center justify-center font-bold text-sm shadow-sm">
+          <div className="w-8 h-8 rounded-full bg-[#0088cc] text-white flex items-center justify-center font-bold text-sm">
             P
           </div>
-          <span className="font-bold text-slate-900 text-base sm:text-lg tracking-tight">
+          <span className="font-bold text-slate-900 text-base tracking-tight">
             Pinnacle Laundry
           </span>
         </Link>
 
-        {/* Desktop Nav Links with Active State */}
-        <nav className="hidden md:flex items-center gap-8 text-sm font-medium">
-          {navLinks.map((link) => {
-            const active = isActive(link.href);
-            return (
-              <Link
-                key={link.href}
-                href={link.href}
-                className={`transition-colors py-1 relative ${
-                  active
-                    ? "text-[#0088cc] font-semibold"
-                    : "text-slate-600 hover:text-[#0088cc]"
-                }`}
-              >
-                {link.name}
-                {active && (
-                  <span className="absolute bottom-0 left-0 right-0 h-[2px] bg-[#0088cc] rounded-full" />
-                )}
-              </Link>
-            );
-          })}
-        </nav>
-
-        {/* Desktop Actions */}
-        <div className="hidden md:flex items-center gap-5">
-          <Link
-            href="/login"
-            className={`text-sm font-medium transition-colors ${
-              isActive("/login")
-                ? "text-[#0088cc] font-semibold"
-                : "text-slate-700 hover:text-[#0088cc]"
-            }`}
-          >
-            Login
-          </Link>
+        {/* Desktop Navigation Links */}
+        <nav className="hidden md:flex items-center gap-6 text-xs font-semibold text-slate-600">
           <Link
             href="/services"
-            className="px-5 py-2.5 rounded-full bg-[#0088cc] hover:bg-[#0077b3] text-white text-sm font-semibold transition-all shadow-sm active:scale-95"
+            className={`hover:text-[#0088cc] transition ${
+              pathname === "/services" ? "text-[#0088cc]" : ""
+            }`}
+          >
+            Services
+          </Link>
+          <Link
+            href="/book"
+            className={`hover:text-[#0088cc] transition ${
+              pathname === "/book" ? "text-[#0088cc]" : ""
+            }`}
           >
             Book Laundry
           </Link>
+          <Link
+            href="/track-order"
+            className={`hover:text-[#0088cc] transition ${
+              pathname.startsWith("/track-order") ? "text-[#0088cc]" : ""
+            }`}
+          >
+            Track Order
+          </Link>
+        </nav>
+
+        {/* Right Action Control */}
+        <div className="hidden md:flex items-center gap-3">
+          {user ? (
+            <Link
+              href={dashboardHref}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-50 hover:bg-sky-100 text-[#0088cc] text-xs font-bold transition shadow-sm"
+            >
+              <LayoutDashboard className="w-4 h-4" />
+              Dashboard
+            </Link>
+          ) : (
+            <div className="flex items-center gap-2">
+              <Link
+                href="/login"
+                className="px-4 py-2 text-xs font-bold text-slate-700 hover:text-[#0088cc] transition"
+              >
+                Sign In
+              </Link>
+              <Link
+                href="/signup"
+                className="px-4 py-2 rounded-xl bg-[#0088cc] hover:bg-[#0077b3] text-white text-xs font-bold shadow-sm transition"
+              >
+                Get Started
+              </Link>
+            </div>
+          )}
         </div>
 
-        {/* Mobile Hamburger Trigger */}
+        {/* Mobile Toggle */}
         <button
-          onClick={() => setIsOpen(!isOpen)}
-          className="md:hidden p-2 -mr-1 text-slate-700 hover:text-[#0088cc] transition-colors"
+          onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+          className="md:hidden p-2 text-slate-600"
           aria-label="Toggle Navigation"
         >
-          {isOpen ? <X className="w-6 h-6" /> : <Menu className="w-6 h-6" />}
+          {mobileMenuOpen ? (
+            <X className="w-5 h-5" />
+          ) : (
+            <Menu className="w-5 h-5" />
+          )}
         </button>
       </div>
 
       {/* Mobile Menu Dropdown */}
-      {isOpen && (
-        <div className="md:hidden bg-white border-t border-slate-100 px-4 pt-3 pb-6 space-y-3 shadow-xl">
-          <nav className="flex flex-col space-y-2 text-base font-medium">
-            {navLinks.map((link) => {
-              const active = isActive(link.href);
-              return (
+      {mobileMenuOpen && (
+        <div className="md:hidden border-t border-slate-100 bg-white px-4 py-4 space-y-3">
+          <Link
+            href="/services"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block text-sm font-semibold text-slate-700"
+          >
+            Services
+          </Link>
+          <Link
+            href="/book"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block text-sm font-semibold text-slate-700"
+          >
+            Book Laundry
+          </Link>
+          <Link
+            href="/track-order"
+            onClick={() => setMobileMenuOpen(false)}
+            className="block text-sm font-semibold text-slate-700"
+          >
+            Track Order
+          </Link>
+
+          <div className="pt-3 border-t border-slate-100">
+            {user ? (
+              <Link
+                href={dashboardHref}
+                onClick={() => setMobileMenuOpen(false)}
+                className="flex items-center justify-center gap-2 w-full py-2.5 text-xs font-bold text-white bg-[#0088cc] rounded-xl"
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                Go to Dashboard
+              </Link>
+            ) : (
+              <div className="flex flex-col gap-2">
                 <Link
-                  key={link.href}
-                  href={link.href}
-                  onClick={() => setIsOpen(false)}
-                  className={`py-2 px-1 transition-colors rounded-lg ${
-                    active
-                      ? "text-[#0088cc] font-semibold bg-sky-50"
-                      : "text-slate-700 hover:text-[#0088cc]"
-                  }`}
+                  href="/login"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center py-2 text-xs font-bold text-slate-700 border border-slate-200 rounded-xl"
                 >
-                  {link.name}
+                  Sign In
                 </Link>
-              );
-            })}
-            <Link
-              href="/login"
-              onClick={() => setIsOpen(false)}
-              className={`py-2 px-1 transition-colors rounded-lg ${
-                isActive("/login")
-                  ? "text-[#0088cc] font-semibold bg-sky-50"
-                  : "text-slate-700 hover:text-[#0088cc]"
-              }`}
-            >
-              Login
-            </Link>
-          </nav>
-          <div className="pt-2">
-            <Link
-              href="/services"
-              onClick={() => setIsOpen(false)}
-              className="block w-full text-center py-3 rounded-xl bg-[#0088cc] text-white font-semibold text-sm shadow-sm active:scale-98 transition-all"
-            >
-              Book Laundry
-            </Link>
+                <Link
+                  href="/signup"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="text-center py-2 text-xs font-bold text-white bg-[#0088cc] rounded-xl"
+                >
+                  Get Started
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       )}

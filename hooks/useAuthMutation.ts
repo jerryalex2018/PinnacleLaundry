@@ -9,6 +9,24 @@ export function useAuthMutation() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
+  // Helper to drain any pending booking draft
+  const finalizePendingBooking = async () => {
+    const pending = localStorage.getItem("pending_booking");
+    if (pending) {
+      try {
+        const orderData = JSON.parse(pending);
+        await fetch("/api/orders", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(orderData),
+        });
+        localStorage.removeItem("pending_booking");
+      } catch (err) {
+        console.error("Failed to auto-submit pending order:", err);
+      }
+    }
+  };
+
   const login = async (payload: LoginPayload) => {
     setLoading(true);
     setError(null);
@@ -20,19 +38,20 @@ export function useAuthMutation() {
       });
 
       const data = await res.json();
-      if (!res.ok) throw new Error(data.message || "Failed to log in");
+      if (!res.ok) throw new Error(data.message || "Invalid login credentials");
 
-      // Dynamic redirect resolved by user role
+      // Save token for authenticated session detection
+      localStorage.setItem("auth_token", data.token || "mock_token");
+
+      // Role check: Admins jump straight to admin panel
       if (data.role === "admin" || data.role === "staff") {
         router.push("/admin");
-      } else {
-        const pending = localStorage.getItem("pending_booking");
-        if (pending) {
-          router.push("/book?resume=true");
-        } else {
-          router.push("/dashboard");
-        }
+        return;
       }
+
+      // Normal user: Submit draft if present, then open customer dashboard
+      await finalizePendingBooking();
+      router.push("/dashboard");
       return data;
     } catch (err: any) {
       setError(err.message);
@@ -55,12 +74,10 @@ export function useAuthMutation() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.message || "Failed to create account");
 
-      const pending = localStorage.getItem("pending_booking");
-      if (pending) {
-        router.push("/book?resume=true");
-      } else {
-        router.push("/dashboard");
-      }
+      localStorage.setItem("auth_token", data.token || "mock_token");
+
+      await finalizePendingBooking();
+      router.push("/dashboard");
       return data;
     } catch (err: any) {
       setError(err.message);

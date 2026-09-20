@@ -1,32 +1,27 @@
-import type { Metadata } from "next";
-import { Plus_Jakarta_Sans } from "next/font/google";
+"use client";
+
+import { usePathname } from "next/navigation";
 import Navbar from "@/components/shared/Navbar";
 import Footer from "@/components/shared/Footer";
-import "./globals.css";
-
-const font = Plus_Jakarta_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500", "600", "700", "800"],
-  display: "swap",
-});
-
-export const metadata: Metadata = {
-  title: "Pinnacle Laundry — Clean Clothes. Zero Hassle.",
-  description:
-    "Professional laundry services near Breeze Point and Student Center.",
-};
+import "@/app/globals.css";
 
 export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
+  const pathname = usePathname();
+  const isAppShell =
+    pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
+
   return (
-    <html lang="en" className={font.className}>
-      <body className="min-h-screen flex flex-col antialiased bg-white text-slate-900">
-        <Navbar />
-        <main className="flex-1 bg-white">{children}</main>
-        <Footer />
+    <html lang="en">
+      <body className="bg-white text-slate-900 antialiased selection:bg-[#0088cc]/10 selection:text-[#0088cc]">
+        {!isAppShell && <Navbar />}
+        <main className={isAppShell ? "" : "min-h-[calc(100vh-4rem)]"}>
+          {children}
+        </main>
+        {!isAppShell && <Footer />}
       </body>
     </html>
   );
